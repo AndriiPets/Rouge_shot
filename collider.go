@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"log"
 )
@@ -75,6 +74,6 @@ func HandleMovement(entity Entity, newX, newY int, sprite *Sprite) {
 }
 
 func ResolveCollision(entityID, targetID EntityID) {
-	fmt.Println("handle collision")
-	fmt.Println(gameGlobal.grid)
+	//fmt.Println("handle collision")
+	//fmt.Println(gameGlobal.grid)
 }

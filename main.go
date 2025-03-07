@@ -61,6 +61,10 @@ type Game struct {
 
 	//grid stuff
 	grid SparseGrid
+
+	//map gen stuff
+	Level      MapManager
+	PathFinder PathFinder
 }
 
 func NewGame() *Game {
@@ -78,6 +82,12 @@ func NewGame() *Game {
 	}
 	game.world = ebiten.NewImage(GRID_WIDTH*CELL_SIZE, GRID_HEIGHT*CELL_SIZE)
 
+	game.Level = NewMapManager(GRID_WIDTH, GRID_HEIGHT, "assets/images/Tileset.png")
+	game.Level.GenerateMap()
+
+	game.PathFinder = NewPathFinder(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE)
+	game.PathFinder.GenerateLayout(game.Level.Map.Data, 'x')
+
 	return game
 }
 
@@ -85,6 +95,28 @@ func (g *Game) GameTick() {
 	for _, enemy := range g.enemies {
 		if enemy != nil {
 			enemy.Update()
+		}
+	}
+}
+
+func (g *Game) ParceMap() {
+	for y, row := range g.Level.Map.Data {
+		for x, val := range row {
+
+			posX, posY := (x * CELL_SIZE), (y * CELL_SIZE)
+
+			if val == 'x' {
+				AddToGrid(NewStaticObstacle(float64(posX), float64(posY)), posX, posY)
+			}
+			if val == 'p' {
+				if g.player != nil {
+					g.player.Move(posX, posY)
+				}
+			}
+			if val == 'e' {
+				NewEnemy(float64(posX), float64(posY))
+			}
+
 		}
 	}
 }
@@ -104,15 +136,18 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{120, 180, 255, 255})
+	//screen.Fill(color.RGBA{120, 180, 255, 255})
 	g.world.Clear()
+
+	//draw map
+	g.Level.DrawTiles(g.world)
 	//draw grid
 	for x := 0; x < GRID_WIDTH*CELL_SIZE; x += CELL_SIZE {
-		vector.StrokeLine(g.world, float32(x), 0, float32(x), GRID_HEIGHT*CELL_SIZE, 1, color.RGBA{255, 255, 255, 255}, false)
+		vector.StrokeLine(g.world, float32(x), 0, float32(x), GRID_HEIGHT*CELL_SIZE, 1, color.RGBA{255, 255, 255, 155}, false)
 	}
 
 	for y := 0; y < GRID_HEIGHT*CELL_SIZE; y += CELL_SIZE {
-		vector.StrokeLine(g.world, 0, float32(y), GRID_WIDTH*CELL_SIZE, float32(y), 1, color.RGBA{255, 255, 255, 255}, false)
+		vector.StrokeLine(g.world, 0, float32(y), GRID_WIDTH*CELL_SIZE, float32(y), 1, color.RGBA{255, 255, 255, 155}, false)
 	}
 
 	g.player.Draw(g.world)
@@ -153,7 +188,8 @@ func main() {
 	game := NewGame()
 	gameGlobal = game
 	game.player = NewPlayer()
-	NewEnemy(3*CELL_SIZE, 4*CELL_SIZE)
+	game.ParceMap()
+	//NewEnemy(game.player.sprite.X+CELL_SIZE, game.player.sprite.Y-CELL_SIZE)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}

@@ -18,6 +18,27 @@ type Entity interface {
 	GetPos() Vec2
 }
 
+type StaticObstacle struct {
+	ID  EntityID
+	Pos Vec2
+}
+
+func NewStaticObstacle(x, y float64) *StaticObstacle {
+	s := StaticObstacle{
+		ID:  NewID(),
+		Pos: Vec2{x, y},
+	}
+	return &s
+}
+
+func (o *StaticObstacle) GetID() EntityID {
+	return o.ID
+}
+
+func (o *StaticObstacle) GetPos() Vec2 {
+	return o.Pos
+}
+
 func (s *Sprite) LoadImageFromFile(path string) {
 	img, _, err := ebitenutil.NewImageFromFile(path)
 	if err != nil {

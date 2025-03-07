@@ -148,10 +148,15 @@ func (p *Player) Update() {
 	}
 
 	if tick {
-		HandleMovement(p, dx, dy, p.sprite)
-		p.collider.Move(int(p.sprite.X), int(p.sprite.Y))
+		p.Move(dx, dy)
 		gameGlobal.GameTick()
 	}
+}
+
+func (p *Player) Move(x, y int) {
+	HandleMovement(p, x, y, p.sprite)
+	p.collider.Move(int(p.sprite.X), int(p.sprite.Y))
+
 }
 
 func (p *Player) Draw(screen *ebiten.Image) {

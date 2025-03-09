@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -114,7 +116,7 @@ func (g *Game) ParceMap() {
 				}
 			}
 			if val == 'e' {
-				NewEnemy(float64(posX), float64(posY))
+				NewEnemy(float64(posX), float64(posY), Shooter)
 			}
 
 		}
@@ -125,6 +127,19 @@ func (g *Game) Update() error {
 
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		os.Exit(0)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+		//realloc grid maps
+		for _, e := range g.enemies {
+			e.Kill()
+		}
+		g.grid = make(SparseGrid)
+		g.Level.GenerateMap()
+		g.PathFinder = NewPathFinder(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE)
+		g.PathFinder.GenerateLayout(g.Level.Map.Data, 'x')
+		g.ParceMap()
+		fmt.Println(g.Level.ToString())
 	}
 
 	g.player.Update()
@@ -156,6 +171,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if sprite != nil {
 			sprite.Draw(g.world)
 		}
+	}
+
+	//DEBUG
+
+	for _, e := range g.enemies {
+		e.DrawDebug(g.world)
 	}
 
 	for _, coll := range g.colliders {

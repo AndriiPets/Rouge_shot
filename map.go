@@ -52,7 +52,7 @@ func (m *MapManager) GenerateMap() {
 	case BSP:
 
 		bspOptions := dngn.NewDefaultBSPOptions()
-		bspOptions.SplitCount = 60
+		bspOptions.SplitCount = 40
 		bspOptions.MinimumRoomSize = 5
 
 		bspRooms := m.Map.GenerateBSP(bspOptions)

@@ -11,6 +11,7 @@ import (
 )
 
 type PlayerState uint8
+type AimDirection uint8
 
 const (
 	Idle PlayerState = iota
@@ -18,6 +19,14 @@ const (
 	AimedUp
 	AimedRight
 	AimedLeft
+)
+
+const (
+	None AimDirection = iota
+	Down
+	Up
+	Left
+	Right
 )
 
 type Player struct {
@@ -28,6 +37,9 @@ type Player struct {
 	health   int
 	aimed    bool
 	state    PlayerState
+
+	//combat stats
+	MeleeDamage uint
 }
 
 func NewPlayer() *Player {
@@ -37,12 +49,13 @@ func NewPlayer() *Player {
 	playerCollider := NewCollider(posX, posY, 16, 16, id)
 	palyerSpite.LoadImageFromFile("assets/images/ninja.png")
 	player := Player{
-		ID:       id,
-		sprite:   palyerSpite,
-		collider: playerCollider,
-		health:   10,
-		state:    Idle,
-		weapon:   &Weapon{fireRange: 4, damage: 1},
+		ID:          id,
+		sprite:      palyerSpite,
+		collider:    playerCollider,
+		health:      10,
+		state:       Idle,
+		weapon:      &Weapon{fireRange: 4, damage: 1, AimDir: None},
+		MeleeDamage: 1,
 	}
 
 	return &player
@@ -50,9 +63,55 @@ func NewPlayer() *Player {
 }
 
 type Weapon struct {
-	fireRange float32
-	damage    int
-	BB        image.Rectangle
+	fireRange  float32
+	damage     int
+	BB         image.Rectangle
+	AimDir     AimDirection
+	DamageArea []Vec2
+}
+
+func (w *Weapon) UpdateAim(X, Y float64) {
+	area := make([]Vec2, int(w.fireRange))
+	switch w.AimDir {
+	case Up:
+		for i := range int(w.fireRange) {
+			cell := Vec2{X, Y - float64(16*(i+1))}
+			area = append(area, cell)
+		}
+
+	case Down:
+		for i := range int(w.fireRange) {
+			cell := Vec2{X, Y + float64(16*(i+1))}
+			area = append(area, cell)
+		}
+
+	case Left:
+		for i := range int(w.fireRange) {
+			cell := Vec2{X - float64(16*(i+1)), Y}
+			area = append(area, cell)
+		}
+
+	case Right:
+		for i := range int(w.fireRange) {
+			cell := Vec2{X + float64(16*(i+1)), Y}
+			area = append(area, cell)
+		}
+
+	}
+
+	w.DamageArea = area
+}
+
+func (w *Weapon) DoDamage(id EntityID) {
+	if id == gameGlobal.player.ID {
+		gameGlobal.player.health -= w.damage
+		fmt.Println("Enemy ranged hit player ", "health remaining ", gameGlobal.player.health)
+	}
+
+	if enemy, ok := gameGlobal.enemies[id]; ok {
+		fmt.Println("Player ranged hit enemy ", "health remaining ", enemy.health)
+		enemy.health -= w.damage
+	}
 }
 
 func AttackEnemy(rect image.Rectangle, damage int) {
@@ -84,14 +143,14 @@ func (p *Player) Update() {
 	dx, dy := int(p.sprite.X), int(p.sprite.Y)
 
 	var rect image.Rectangle
-	switch p.state {
-	case AimedDown:
+	switch p.weapon.AimDir {
+	case Down:
 		rect = image.Rect(int(p.sprite.X), int(p.sprite.Y+16), int(p.sprite.X+16), int(p.sprite.Y+float64(16*p.weapon.fireRange+16)))
-	case AimedUp:
+	case Up:
 		rect = image.Rect(int(p.sprite.X), int(p.sprite.Y-float64(16*p.weapon.fireRange)), int(p.sprite.X+16), int(p.sprite.Y))
-	case AimedLeft:
+	case Left:
 		rect = image.Rect(int(p.sprite.X-float64(16*p.weapon.fireRange)), int(p.sprite.Y+16), int(p.sprite.X), int(p.sprite.Y))
-	case AimedRight:
+	case Right:
 		rect = image.Rect(int(p.sprite.X+16), int(p.sprite.Y), int(p.sprite.X+float64(16*p.weapon.fireRange+16)), int(p.sprite.Y+16))
 	}
 	p.weapon.BB = rect
@@ -101,54 +160,53 @@ func (p *Player) Update() {
 			dx += CELL_SIZE
 			tick = true
 		} else {
-			fmt.Println("aimed right")
-			p.state = AimedRight
+			p.weapon.AimDir = Right
 		}
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
 		if !p.aimed {
 			dx -= CELL_SIZE
 			tick = true
 		} else {
-			fmt.Println("aimed left")
-			p.state = AimedLeft
+			p.weapon.AimDir = Left
 		}
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
 		if !p.aimed {
 			dy -= CELL_SIZE
 			tick = true
 		} else {
-			fmt.Println("aimed up")
-			p.state = AimedUp
+			p.weapon.AimDir = Up
 		}
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyDown) {
 		if !p.aimed {
 			dy += CELL_SIZE
 			tick = true
 		} else {
-			fmt.Println("aimed down")
-			p.state = AimedDown
+			p.weapon.AimDir = Down
 		}
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
 		p.aimed = !p.aimed
 		if p.aimed {
 			fmt.Println("gun ready")
+			p.weapon.AimDir = Right
 
 		} else {
 			fmt.Println("gun holsterd")
-			p.state = Idle
+			p.weapon.AimDir = None
 		}
 
-		tick = true
+		//tick = true
 	}
 
 	//fire weapon
 	if inpututil.IsKeyJustPressed(ebiten.KeyX) && p.aimed {
-		AttackEnemy(p.weapon.BB, p.weapon.damage)
+		AttackArea(p.weapon.DamageArea, p.weapon)
 		tick = true
 	}
+	p.weapon.UpdateAim(p.sprite.X, p.sprite.Y)
 
 	if tick {
 		p.Move(dx, dy)
+
 		gameGlobal.GameTick()
 	}
 }
@@ -160,7 +218,20 @@ func (p *Player) Move(x, y int) {
 }
 
 func (p *Player) Draw(screen *ebiten.Image) {
-	vector.StrokeRect(
+
+	for _, v := range p.weapon.DamageArea {
+		vector.StrokeRect(
+			screen,
+			float32(v.X),
+			float32(v.Y),
+			16,
+			16,
+			1,
+			color.RGBA{255, 0, 0, 255},
+			false,
+		)
+	}
+	/*vector.StrokeRect(
 		screen,
 		float32(p.weapon.BB.Min.X),
 		float32(p.weapon.BB.Min.Y),
@@ -169,6 +240,6 @@ func (p *Player) Draw(screen *ebiten.Image) {
 		1,
 		color.RGBA{255, 0, 0, 255},
 		false,
-	)
+	)*/
 
 }

@@ -81,14 +81,14 @@ func ResolveCollision(entityID, targetID EntityID) {
 	if entityID == gameGlobal.player.ID {
 		enemy, ok := gameGlobal.enemies[targetID]
 		if ok {
-			enemy.health -= 1
+			enemy.health -= int(gameGlobal.player.MeleeDamage)
 			fmt.Println("Player melee hit enemy ", "health remaining ", enemy.health)
 		}
 	}
 
-	if _, ok := gameGlobal.enemies[entityID]; ok {
+	if enemy, ok := gameGlobal.enemies[entityID]; ok {
 		if targetID == gameGlobal.player.ID {
-			gameGlobal.player.health -= 1
+			gameGlobal.player.health -= enemy.meleeDamage
 			fmt.Println("Enemy melee hit player ", "health remaining :", gameGlobal.player.health)
 		}
 	}

@@ -108,6 +108,7 @@ func (m *MapManager) GenerateMap() {
 	// Add a different tile for an alternate floor
 	mapSelection.FilterByRune(' ').FilterByPercentage(0.1).Fill('.')
 	mapSelection.FilterByRune(' ').FilterByPercentage(0.005).Fill('e')
+	mapSelection.FilterByRune(' ').FilterByPercentage(0.003).Fill('b')
 }
 
 func (m *MapManager) ToString() string {

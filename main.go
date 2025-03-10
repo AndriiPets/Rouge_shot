@@ -1,10 +1,12 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
 	"log"
+	"math/rand"
 	"os"
 	"strconv"
 
@@ -15,6 +17,9 @@ import (
 )
 
 var gameGlobal *Game
+
+//go:embed assets/*
+var assets embed.FS
 
 type Sprite struct {
 	Img  *ebiten.Image
@@ -52,10 +57,11 @@ func (s *Sprite) Draw(screen *ebiten.Image) {
 }
 
 type Game struct {
-	player    *Player
-	enemies   map[EntityID]*Enemy
-	sprites   map[EntityID]*Sprite
-	colliders map[EntityID]*Collider
+	player     *Player
+	enemies    map[EntityID]*Enemy
+	sprites    map[EntityID]*Sprite
+	colliders  map[EntityID]*Collider
+	explosives map[EntityID]*Explosive
 
 	//camera stuff
 	camera Camera
@@ -74,6 +80,7 @@ func NewGame() *Game {
 	game.enemies = make(map[EntityID]*Enemy)
 	game.sprites = make(map[EntityID]*Sprite)
 	game.colliders = make(map[EntityID]*Collider)
+	game.explosives = make(map[EntityID]*Explosive)
 
 	game.grid = make(SparseGrid)
 
@@ -99,6 +106,12 @@ func (g *Game) GameTick() {
 			enemy.Update()
 		}
 	}
+
+	for _, explosive := range g.explosives {
+		if explosive != nil {
+			explosive.Update()
+		}
+	}
 }
 
 func (g *Game) ParceMap() {
@@ -116,7 +129,15 @@ func (g *Game) ParceMap() {
 				}
 			}
 			if val == 'e' {
-				NewEnemy(float64(posX), float64(posY), Shooter)
+				die := rand.Intn(100)
+				if die < 60 {
+					NewEnemy(float64(posX), float64(posY), Bomber)
+				} else {
+					NewEnemy(float64(posX), float64(posY), Shooter)
+				}
+			}
+			if val == 'b' {
+				NewExplosive(float64(posX), float64(posY), Barrel)
 			}
 
 		}
@@ -179,6 +200,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		e.DrawDebug(g.world)
 	}
 
+	for _, ex := range g.explosives {
+		ex.DrawDebug(g.world)
+	}
+
 	for _, coll := range g.colliders {
 		if coll != nil {
 			vector.StrokeRect(
@@ -194,7 +219,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
+	//CAMERA RENDER
+
 	g.camera.Render(g.world, screen)
+
+	//UI STUFF
 
 	ebitenutil.DebugPrint(screen, strconv.FormatFloat(ebiten.ActualFPS(), 'f', 1, 64))
 }

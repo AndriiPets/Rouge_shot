@@ -21,14 +21,6 @@ const (
 	AimedLeft
 )
 
-const (
-	None AimDirection = iota
-	Down
-	Up
-	Left
-	Right
-)
-
 type Player struct {
 	ID       EntityID
 	sprite   *Sprite
@@ -60,58 +52,6 @@ func NewPlayer() *Player {
 
 	return &player
 
-}
-
-type Weapon struct {
-	fireRange  float32
-	damage     int
-	BB         image.Rectangle
-	AimDir     AimDirection
-	DamageArea []Vec2
-}
-
-func (w *Weapon) UpdateAim(X, Y float64) {
-	area := make([]Vec2, int(w.fireRange))
-	switch w.AimDir {
-	case Up:
-		for i := range int(w.fireRange) {
-			cell := Vec2{X, Y - float64(16*(i+1))}
-			area = append(area, cell)
-		}
-
-	case Down:
-		for i := range int(w.fireRange) {
-			cell := Vec2{X, Y + float64(16*(i+1))}
-			area = append(area, cell)
-		}
-
-	case Left:
-		for i := range int(w.fireRange) {
-			cell := Vec2{X - float64(16*(i+1)), Y}
-			area = append(area, cell)
-		}
-
-	case Right:
-		for i := range int(w.fireRange) {
-			cell := Vec2{X + float64(16*(i+1)), Y}
-			area = append(area, cell)
-		}
-
-	}
-
-	w.DamageArea = area
-}
-
-func (w *Weapon) DoDamage(id EntityID) {
-	if id == gameGlobal.player.ID {
-		gameGlobal.player.health -= w.damage
-		fmt.Println("Enemy ranged hit player ", "health remaining ", gameGlobal.player.health)
-	}
-
-	if enemy, ok := gameGlobal.enemies[id]; ok {
-		fmt.Println("Player ranged hit enemy ", "health remaining ", enemy.health)
-		enemy.health -= w.damage
-	}
 }
 
 func AttackEnemy(rect image.Rectangle, damage int) {

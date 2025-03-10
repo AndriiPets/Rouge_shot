@@ -14,6 +14,7 @@ type AiType uint8
 const (
 	Melee AiType = iota
 	Shooter
+	Bomber
 )
 
 type Enemy struct {
@@ -22,28 +23,55 @@ type Enemy struct {
 	collider *Collider
 
 	//COMBAT
-	health int
-	weapon *Weapon
-	AI     AiType
+	health      int
+	weapon      *Weapon
+	meleeDamage int
+	AI          AiType
 
 	Path PathList
 
 	DetectedPlayer bool
 	IsMoving       bool
+	HasFiered      bool
 }
 
 func NewEnemy(x, y float64, aiType AiType) {
 	id := NewID()
 	enemySprite := NewSprite(x, y, id)
 	enemyCollider := NewCollider(int(x), int(y), 16, 16, id)
-	enemySprite.LoadImageFromFile("assets/images/skeleton.png")
+
+	var health, melee, wRange, cooldown int
+
+	switch aiType {
+	case Melee:
+		enemySprite.LoadImageFromFile("assets/images/skeleton.png")
+		health = 2
+		melee = 2
+		wRange = 2
+		cooldown = 1
+
+	case Shooter:
+		enemySprite.LoadImageFromFile("assets/images/skeleton2.png")
+		health = 3
+		melee = 1
+		wRange = 4
+		cooldown = 1
+
+	case Bomber:
+		enemySprite.LoadImageFromFile("assets/images/skeleton2.png")
+		health = 4
+		melee = 2
+		wRange = 8
+		cooldown = 7
+	}
 	enemy := &Enemy{
-		ID:       id,
-		sprite:   enemySprite,
-		collider: enemyCollider,
-		health:   3,
-		weapon:   &Weapon{fireRange: 6, damage: 1, AimDir: None},
-		AI:       aiType,
+		ID:          id,
+		sprite:      enemySprite,
+		collider:    enemyCollider,
+		health:      health,
+		weapon:      &Weapon{fireRange: float32(wRange), damage: 1, AimDir: None, Cooldown: cooldown, CooldownCount: cooldown},
+		AI:          aiType,
+		meleeDamage: melee,
 	}
 	gameGlobal.enemies[id] = enemy
 
@@ -90,6 +118,12 @@ func PlayerInRange(x, y, dRange int) bool {
 func (e *Enemy) UpdateAI() {
 	mov := true
 	detect := true
+
+	if e.HasFiered {
+		mov = false
+		e.HasFiered = false
+	}
+
 	playerX, playerY := gameGlobal.player.sprite.X, gameGlobal.player.sprite.Y
 	line := CellsInLine(e.sprite.X, gameGlobal.player.sprite.X, e.sprite.Y, gameGlobal.player.sprite.Y)
 
@@ -104,18 +138,81 @@ func (e *Enemy) UpdateAI() {
 
 	case Shooter:
 
-		if e.sprite.X == playerX || e.sprite.Y == playerY {
+		if (e.sprite.X == playerX || e.sprite.Y == playerY) && detect {
 
 			if len(line) <= int(e.weapon.fireRange) && len(line) > 2 {
 
-				//TODO: turn weapon towards the player before shooting
+				//turn weapon towards the player before shooting
+				if e.sprite.X > playerX {
+					e.weapon.AimDir = Left
+				}
+				if e.sprite.X < playerX {
+					e.weapon.AimDir = Right
+				}
+				if e.sprite.Y < playerY {
+					e.weapon.AimDir = Down
+				}
+				if e.sprite.Y > playerY {
+					e.weapon.AimDir = Up
+				}
 
 				fmt.Println("enemy ready to fire", len(line))
 				e.weapon.UpdateAim(e.sprite.X, e.sprite.Y)
 
 				AttackArea(e.weapon.DamageArea, e.weapon)
+				e.HasFiered = true
 
 				mov = false
+			}
+		}
+
+	case Bomber:
+		e.weapon.UpdateCooldown()
+		fmt.Println("bomber cooldown", e.weapon.CooldownCount)
+		if detect {
+
+			if len(line) <= int(e.weapon.fireRange) && len(line) > 2 && !e.weapon.OnCooldown {
+				fmt.Println("Bomber ready to bomb", len(line))
+				vel := Vec2{}
+				//turn weapon towards the player before shooting
+				if e.sprite.X > playerX {
+					e.weapon.AimDir = Left
+					if e.sprite.Y < playerY {
+						vel = Vec2{-16, 16}
+					}
+					if e.sprite.Y > playerY {
+						vel = Vec2{-16, -16}
+					}
+					if e.sprite.Y == playerY {
+						vel = Vec2{-16, 0}
+					}
+				}
+				if e.sprite.X < playerX {
+					e.weapon.AimDir = Right
+					if e.sprite.Y < playerY {
+						vel = Vec2{16, 16}
+					}
+					if e.sprite.Y > playerY {
+						vel = Vec2{16, -16}
+					}
+					if e.sprite.Y == playerY {
+						vel = Vec2{16, 0}
+					}
+				}
+				if e.sprite.X == playerX {
+					if e.sprite.Y < playerY {
+						e.weapon.AimDir = Down
+						vel = Vec2{0, 16}
+					}
+					if e.sprite.Y > playerY {
+						e.weapon.AimDir = Up
+						vel = Vec2{0, -16}
+					}
+				}
+
+				exp := NewExplosive(e.sprite.X+vel.X, e.sprite.Y+vel.Y, Dynamite)
+				exp.SetVelocity(vel)
+				e.weapon.OnCooldown = true
 			}
 		}
 
@@ -141,7 +238,6 @@ func (e *Enemy) Update() {
 		}
 
 		e.Move(dx, dy)*/
-	e.UpdateAI()
 
 	if e.DetectedPlayer {
 		//fmt.Println("Detected by enemy")
@@ -152,15 +248,15 @@ func (e *Enemy) Update() {
 		switch e.Path.Steps.Next().String() {
 		case "Right":
 			dx += CELL_SIZE
-			e.weapon.AimDir = Right
+			//e.weapon.AimDir = Right
 		case "Left":
 			dx -= CELL_SIZE
-			e.weapon.AimDir = Left
+			//e.weapon.AimDir = Left
 		case "Up":
 			dy -= CELL_SIZE
-			e.weapon.AimDir = Up
+			//e.weapon.AimDir = Up
 		case "Down":
-			e.weapon.AimDir = Down
+			//e.weapon.AimDir = Down
 			dy += CELL_SIZE
 
 		}
@@ -168,6 +264,8 @@ func (e *Enemy) Update() {
 		e.Move(dx, dy)
 
 	}
+
+	e.UpdateAI()
 
 	if e.health <= 0 {
 		fmt.Println("enemy Dead")

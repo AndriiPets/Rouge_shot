@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"image"
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type EntityID uuid.UUID
@@ -40,9 +43,23 @@ func (o *StaticObstacle) GetPos() Vec2 {
 }
 
 func (s *Sprite) LoadImageFromFile(path string) {
-	img, _, err := ebitenutil.NewImageFromFile(path)
-	if err != nil {
-		log.Fatal(err)
-	}
+	img := ebiten.NewImageFromImage(readImage(path))
 	s.Img = img
+}
+
+func readImage(file string) image.Image {
+	b, err := assets.ReadFile(file)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot find a file %s", file))
+	}
+	return bytes2Image(&b)
+}
+
+func bytes2Image(raw *[]byte) image.Image {
+	img, format, err := image.Decode(bytes.NewReader(*raw))
+	if err != nil {
+		log.Fatal("Byte2Image Failed:", format, err)
+	}
+
+	return img
 }

@@ -89,7 +89,7 @@ func (ex *Explosive) SetVelocity(vel Vec2) {
 func (ex *Explosive) Update() {
 	if ex.TimeToBoom < 20 {
 		ex.TimeToBoom -= 1
-		fmt.Println("time to boom", ex.TimeToBoom)
+		//fmt.Println("time to boom", ex.TimeToBoom)
 	}
 
 	if ex.Velocity.X != 0 || ex.Velocity.Y != 0 {
@@ -202,7 +202,7 @@ func (w *Weapon) DoDamage(id EntityID) {
 	}
 
 	if ex, ok := gameGlobal.explosives[id]; ok {
-		fmt.Println("Player ranged hit explosive ", "it goes boom ")
+		fmt.Println("Something hit explosive ", "it goes boom ")
 		ex.health -= w.damage
 	}
 }

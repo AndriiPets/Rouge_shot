@@ -131,9 +131,9 @@ func (g *Game) ParceMap() {
 			if val == 'e' {
 				die := rand.Intn(100)
 				if die < 60 {
-					NewEnemy(float64(posX), float64(posY), Bomber)
+					NewEnemyBomber(float64(posX), float64(posY))
 				} else {
-					NewEnemy(float64(posX), float64(posY), Shooter)
+					NewEnemyBomber(float64(posX), float64(posY))
 				}
 			}
 			if val == 'b' {
@@ -154,6 +154,9 @@ func (g *Game) Update() error {
 		//realloc grid maps
 		for _, e := range g.enemies {
 			e.Kill()
+		}
+		for _, exp := range g.explosives {
+			exp.Kill()
 		}
 		g.grid = make(SparseGrid)
 		g.Level.GenerateMap()

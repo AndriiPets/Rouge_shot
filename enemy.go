@@ -9,14 +9,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-type AiType uint8
-
-const (
-	Melee AiType = iota
-	Shooter
-	Bomber
-)
-
 type Enemy struct {
 	ID       EntityID
 	sprite   *Sprite
@@ -26,7 +18,10 @@ type Enemy struct {
 	health      int
 	weapon      *Weapon
 	meleeDamage int
-	AI          AiType
+
+	//AI
+	Behaviors map[BehaviorState]BehaviorFunc
+	State     BehaviorState
 
 	Path PathList
 
@@ -35,48 +30,47 @@ type Enemy struct {
 	HasFiered      bool
 }
 
-func NewEnemy(x, y float64, aiType AiType) {
+func NewEnemyShooter(x, y float64) {
+	enemy := NewEnemy(x, y)
+	enemy.Behaviors[EnemyAttack] = AttackBehaviorShooter
+}
+
+func NewEnemyBomber(x, y float64) {
+	enemy := NewEnemy(x, y)
+	enemy.Behaviors[EnemyAttack] = AttackBehaviorBomber
+}
+func NewEnemy(x, y float64) *Enemy {
 	id := NewID()
 	enemySprite := NewSprite(x, y, id)
 	enemyCollider := NewCollider(int(x), int(y), 16, 16, id)
 
 	var health, melee, wRange, cooldown int
 
-	switch aiType {
-	case Melee:
-		enemySprite.LoadImageFromFile("assets/images/skeleton.png")
-		health = 2
-		melee = 2
-		wRange = 2
-		cooldown = 1
+	enemySprite.LoadImageFromFile("assets/images/skeleton.png")
+	health = 2
+	melee = 2
+	wRange = 4
+	cooldown = 7
 
-	case Shooter:
-		enemySprite.LoadImageFromFile("assets/images/skeleton2.png")
-		health = 3
-		melee = 1
-		wRange = 4
-		cooldown = 1
-
-	case Bomber:
-		enemySprite.LoadImageFromFile("assets/images/skeleton2.png")
-		health = 4
-		melee = 2
-		wRange = 8
-		cooldown = 7
-	}
 	enemy := &Enemy{
 		ID:          id,
 		sprite:      enemySprite,
 		collider:    enemyCollider,
 		health:      health,
 		weapon:      &Weapon{fireRange: float32(wRange), damage: 1, AimDir: None, Cooldown: cooldown, CooldownCount: cooldown},
-		AI:          aiType,
 		meleeDamage: melee,
+		Behaviors: map[BehaviorState]BehaviorFunc{
+			EnemyIdle:   IdleBehavior,
+			EnemyChase:  ChaseBehavior,
+			EnemyAttack: AttackBehavior,
+		},
+		State: EnemyIdle,
 	}
 	gameGlobal.enemies[id] = enemy
 
 	enemy.Move(int(x), int(y))
 
+	return enemy
 }
 
 func (e *Enemy) GetID() EntityID {
@@ -109,118 +103,14 @@ func (e *Enemy) BuildPath() {
 	}
 }
 
-func PlayerInRange(x, y, dRange int) bool {
-	detectionRange := dRange * CELL_SIZE
-	playerX, playerY := gameGlobal.player.sprite.X, gameGlobal.player.sprite.Y
-	return math.Abs(float64(x)-playerX) < float64(detectionRange) || math.Abs(float64(y)-playerY) < float64(detectionRange)
-}
+func (e *Enemy) WeaponRangeCheck(p *Player) bool {
+	dist := math.Max(
+		math.Abs(e.sprite.X-p.sprite.X),
+		math.Abs(e.sprite.Y-p.sprite.Y),
+	)
 
-func (e *Enemy) UpdateAI() {
-	mov := true
-	detect := true
+	return dist <= float64(e.weapon.fireRange*16)
 
-	if e.HasFiered {
-		mov = false
-		e.HasFiered = false
-	}
-
-	playerX, playerY := gameGlobal.player.sprite.X, gameGlobal.player.sprite.Y
-	line := CellsInLine(e.sprite.X, gameGlobal.player.sprite.X, e.sprite.Y, gameGlobal.player.sprite.Y)
-
-	for _, v := range line {
-		if gameGlobal.Level.Map.Get(int(v.X), int(v.Y)) == 'x' {
-			detect = false
-		}
-	}
-
-	switch e.AI {
-	case Melee:
-
-	case Shooter:
-
-		if (e.sprite.X == playerX || e.sprite.Y == playerY) && detect {
-
-			if len(line) <= int(e.weapon.fireRange) && len(line) > 2 {
-
-				//turn weapon towards the player before shooting
-				if e.sprite.X > playerX {
-					e.weapon.AimDir = Left
-				}
-				if e.sprite.X < playerX {
-					e.weapon.AimDir = Right
-				}
-				if e.sprite.Y < playerY {
-					e.weapon.AimDir = Down
-				}
-				if e.sprite.Y > playerY {
-					e.weapon.AimDir = Up
-				}
-
-				fmt.Println("enemy ready to fire", len(line))
-				e.weapon.UpdateAim(e.sprite.X, e.sprite.Y)
-
-				AttackArea(e.weapon.DamageArea, e.weapon)
-				e.HasFiered = true
-
-				mov = false
-			}
-		}
-
-	case Bomber:
-		e.weapon.UpdateCooldown()
-		fmt.Println("bomber cooldown", e.weapon.CooldownCount)
-		if detect {
-
-			if len(line) <= int(e.weapon.fireRange) && len(line) > 2 && !e.weapon.OnCooldown {
-				fmt.Println("Bomber ready to bomb", len(line))
-				vel := Vec2{}
-				//turn weapon towards the player before shooting
-				if e.sprite.X > playerX {
-					e.weapon.AimDir = Left
-					if e.sprite.Y < playerY {
-						vel = Vec2{-16, 16}
-					}
-					if e.sprite.Y > playerY {
-						vel = Vec2{-16, -16}
-					}
-					if e.sprite.Y == playerY {
-						vel = Vec2{-16, 0}
-					}
-				}
-				if e.sprite.X < playerX {
-					e.weapon.AimDir = Right
-					if e.sprite.Y < playerY {
-						vel = Vec2{16, 16}
-					}
-					if e.sprite.Y > playerY {
-						vel = Vec2{16, -16}
-					}
-					if e.sprite.Y == playerY {
-						vel = Vec2{16, 0}
-					}
-				}
-				if e.sprite.X == playerX {
-					if e.sprite.Y < playerY {
-						e.weapon.AimDir = Down
-						vel = Vec2{0, 16}
-					}
-					if e.sprite.Y > playerY {
-						e.weapon.AimDir = Up
-						vel = Vec2{0, -16}
-					}
-				}
-
-				exp := NewExplosive(e.sprite.X+vel.X, e.sprite.Y+vel.Y, Dynamite)
-				exp.SetVelocity(vel)
-				e.weapon.OnCooldown = true
-			}
-		}
-
-	}
-
-	e.IsMoving = mov
-
-	e.DetectedPlayer = detect
 }
 
 func (e *Enemy) Update() {
@@ -239,10 +129,11 @@ func (e *Enemy) Update() {
 
 		e.Move(dx, dy)*/
 
-	if e.DetectedPlayer {
+	if e.State == EnemyChase {
 		//fmt.Println("Detected by enemy")
 		e.BuildPath()
 	}
+	//fmt.Println(e.State)
 
 	if e.Path.Steps.HasNext() && e.IsMoving {
 		switch e.Path.Steps.Next().String() {
@@ -265,7 +156,18 @@ func (e *Enemy) Update() {
 
 	}
 
-	e.UpdateAI()
+	e.weapon.UpdateCooldown()
+	//e.UpdateAI()
+	if behavior, ok := e.Behaviors[e.State]; ok {
+		e.State = behavior(e, gameGlobal.player)
+	}
+
+	if e.HasFiered {
+		e.HasFiered = false
+		e.IsMoving = false
+	} else {
+		e.IsMoving = true
+	}
 
 	if e.health <= 0 {
 		fmt.Println("enemy Dead")
@@ -279,7 +181,7 @@ func (e *Enemy) Move(x, y int) {
 }
 
 func (e *Enemy) DrawDebug(screen *ebiten.Image) {
-	if e.DetectedPlayer {
+	if e.State == EnemyChase {
 		line := CellsInLine(e.sprite.X, gameGlobal.player.sprite.X, e.sprite.Y, gameGlobal.player.sprite.Y)
 		for _, v := range line {
 			vector.StrokeRect(
